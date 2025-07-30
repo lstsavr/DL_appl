@@ -16,7 +16,6 @@ n_head = 6
 n_layer = 6 
 dropout = 0.2 
 wrap_width = 50
-# ------------
 
 torch.manual_seed(325) 
 file_name = "西游记.txt"
@@ -42,9 +41,6 @@ val_data = data[n:]
 print(f"File {file_name} has been read and processed.")
 
 
-#-----定义函数与模型------------
-
-# data loading
 def get_batch(split):
     # generate a small batch of data of inputs x and targets y
     data = train_data if split == 'train' else val_data
@@ -69,7 +65,6 @@ def estimate_loss(model):
     return out
 
 class Head(nn.Module):
-    """ one head of self-attention """
 
     def __init__(self, head_size):
         super().__init__()
@@ -96,7 +91,6 @@ class Head(nn.Module):
         return out # (B, T, hs)
 
 class MultiHeadAttention(nn.Module):
-    """ multiple heads of self-attention in parallel """
 
     def __init__(self, num_heads, head_size):
         super().__init__()
