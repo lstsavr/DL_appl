@@ -1,0 +1,11 @@
+torch==2.3.*
+torchvision>=0.16.0
+fastapi>=0.104.0
+uvicorn>=0.23.2
+faiss-cpu>=1.7.4
+gradio>=4.0.0
+pillow>=10.0.0
+tqdm>=4.66.1
+regex>=2023.8.8
+python-multipart>=0.0.6
+requests>=2.31.0 

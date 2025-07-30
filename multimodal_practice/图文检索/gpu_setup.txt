@@ -1,0 +1,21 @@
+# GPU训练设置脚本
+# 请按顺序执行以下命令
+
+# 1. 停止当前训练（在训练终端按Ctrl+C）
+
+# 2. 安装CUDA版本的PyTorch
+C:\Users\rulea\Desktop\多模态QA\.conda\python.exe -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# 3. 验证GPU是否可用
+C:\Users\rulea\Desktop\多模态QA\.conda\python.exe -c "import torch; print('CUDA可用:', torch.cuda.is_available()); print('GPU名称:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else '无GPU')"
+
+# 4. 开始GPU训练（更大的batch_size）
+C:\Users\rulea\Desktop\多模态QA\.conda\python.exe train_dual_encoder.py --epochs 5 --batch_size 64 --lr 1e-4 --device cuda
+
+# 如果显存不足，尝试较小的batch_size：
+# C:\Users\rulea\Desktop\多模态QA\.conda\python.exe train_dual_encoder.py --epochs 5 --batch_size 32 --lr 1e-4 --device cuda
+
+# 预期效果：
+# - 训练速度提升10-20倍
+# - 从4小时缩短到20-30分钟
+# - 可以使用更大的batch_size获得更好效果
