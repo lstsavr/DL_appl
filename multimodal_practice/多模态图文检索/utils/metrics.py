@@ -1,13 +1,7 @@
 import numpy as np
 
 def compute_recall(similarity_matrix, K_list=[1, 5, 10]):
-    """
-    similarity_matrix: [N, N]，每行i为文本i与所有图像的相似度
-    K_list: list of int, 计算top-K
-    返回: {'text2img_R@1':..., 'img2text_R@5':...}
-    
-    旧版接口，保留用于兼容性，建议使用compute_metrics
-    """
+
     N = similarity_matrix.shape[0]
     results = {}
     # text->image
@@ -165,4 +159,5 @@ def detailed_metrics_evaluation(txt_embeds, img_embeds, verbose=True):
         print(f"总体:")
         print(f"  rsum: {metrics['rsum']:.4f}")
         
+
     return metrics
