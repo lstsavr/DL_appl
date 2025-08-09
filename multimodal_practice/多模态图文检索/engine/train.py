@@ -5,16 +5,14 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR
 import time
 
-# 导入混合精度训练需要的库
 from torch.cuda.amp import autocast, GradScaler
 
 def set_optimizer_and_scheduler(model, lr=1e-4, weight_decay=0.01, warmup_steps=500, total_steps=10000):
-    # 使用AdamW优化器，支持分组设置不同参数
     optimizer = AdamW([
         {'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay}
     ])
     
-    # 余弦退火+warmup调度器，有效的学习率曲线
+    # 余弦退火+warmup调度器
     def lr_lambda(current_step):
         if current_step < warmup_steps:
             return float(current_step) / float(max(1, warmup_steps))
@@ -26,10 +24,8 @@ def set_optimizer_and_scheduler(model, lr=1e-4, weight_decay=0.01, warmup_steps=
     return optimizer, scheduler
 
 def freeze_encoder_layers(model, freeze_img_layers=0, freeze_txt_layers=0):
-    """冻结部分预训练层，避免过拟合"""
-    # 处理图像编码器
+    # 冻结部分预训练层，避免过拟合
     if freeze_img_layers > 0 and hasattr(model.image_encoder, 'backbone'):
-        # 更精确地冻结层级
         if hasattr(model.image_encoder.backbone, 'children'):
             children = list(model.image_encoder.backbone.children())
             for layer in children[:freeze_img_layers]:
@@ -39,7 +35,7 @@ def freeze_encoder_layers(model, freeze_img_layers=0, freeze_txt_layers=0):
         # 特殊处理BatchNorm层，固定统计量
         for m in model.image_encoder.backbone.modules():
             if isinstance(m, (torch.nn.BatchNorm2d, torch.nn.BatchNorm1d)):
-                m.eval()  # 即使在训练模式也使用评估模式的均值和方差
+                m.eval() 
                 m.weight.requires_grad = False
                 m.bias.requires_grad = False
     
@@ -56,19 +52,7 @@ def freeze_encoder_layers(model, freeze_img_layers=0, freeze_txt_layers=0):
                 param.requires_grad = False
 
 def train(model, dataloader, optimizer, device, scheduler=None, print_freq=100, grad_clip=1.0, use_amp=True, epoch=None):
-    """使用混合精度训练的优化版训练函数
-    
-    参数:
-        model: 要训练的模型
-        dataloader: 训练数据加载器
-        optimizer: 优化器
-        device: 计算设备
-        scheduler: 学习率调度器
-        print_freq: 打印频率
-        grad_clip: 梯度裁剪阈值
-        use_amp: 是否使用混合精度训练
-        epoch: 当前轮数，用于对比损失中的自适应调整
-    """
+
     model.train()
     total_loss = 0
     total_acc_t2i = 0
@@ -77,7 +61,6 @@ def train(model, dataloader, optimizer, device, scheduler=None, print_freq=100, 
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4f')
     
-    # 创建混合精度训练的梯度缩放器
     scaler = GradScaler() if use_amp and device.type == 'cuda' else None
     
     end = time.time()
@@ -129,7 +112,6 @@ def train(model, dataloader, optimizer, device, scheduler=None, print_freq=100, 
         if scheduler:
             scheduler.step()
         
-        # 记录统计信息
         losses.update(loss.item(), images.size(0))
         total_acc_t2i += logs['acc_t2i']
         total_acc_i2t += logs['acc_i2t']
@@ -138,7 +120,6 @@ def train(model, dataloader, optimizer, device, scheduler=None, print_freq=100, 
         batch_time.update(time.time() - end)
         end = time.time()
         
-        # 打印训练信息
         if (step + 1) % print_freq == 0:
             avg_acc_t2i = total_acc_t2i / (step + 1)
             avg_acc_i2t = total_acc_i2t / (step + 1)
@@ -151,16 +132,15 @@ def train(model, dataloader, optimizer, device, scheduler=None, print_freq=100, 
                   f"T2I R@1 {avg_acc_t2i:.4f} I2T R@1 {avg_acc_i2t:.4f} "
                   f"LR {lr:.6f}")
     
-    # 返回平均损失和准确率
     return {
         'loss': losses.avg,
         'acc_t2i': total_acc_t2i / len(dataloader),
         'acc_i2t': total_acc_i2t / len(dataloader)
     }
 
-# 用于记录和计算平均值的工具类
+
 class AverageMeter(object):
-    """计算并存储平均值和当前值"""
+
     def __init__(self, name, fmt=':f'):
         self.name = name
         self.fmt = fmt
@@ -180,4 +160,5 @@ class AverageMeter(object):
 
     def __str__(self):
         fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
+
         return fmtstr.format(**self.__dict__)
