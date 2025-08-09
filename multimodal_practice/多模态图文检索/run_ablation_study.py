@@ -1,8 +1,3 @@
-"""
-消融实验脚本 - 多模态图文检索系统
-此脚本依次运行多种模型配置，实现真正的消融实验
-"""
-
 import os
 import torch
 import json
@@ -12,7 +7,6 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 from transformers import BertTokenizer
 
-# 导入项目中的必要模块
 from data.datasets import FlickrImageTextDataset
 from data.transforms import get_image_transform
 from models.matcher import DualEncoderModel
@@ -20,7 +14,6 @@ from engine.train import train, set_optimizer_and_scheduler, freeze_encoder_laye
 from engine.evaluate import evaluate
 
 def set_seed(seed=42):
-    """设置随机种子以确保可重复性"""
     import random
     import numpy as np
     random.seed(seed)
@@ -31,7 +24,6 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 def get_data_loaders(tokenizer, batch_size=32, num_workers=2):
-    """准备数据加载器 (低内存版本)"""
     ann_file = 'data/flickr8k_aim3/dataset_flickr8k.json'
     img_dir = 'data/flickr8k_aim3/images'
     train_list = 'data/flickr8k_aim3/train_list.txt'
@@ -53,8 +45,7 @@ def get_data_loaders(tokenizer, batch_size=32, num_workers=2):
     if env_workers and env_workers.isdigit():
         num_workers = int(env_workers)
         print(f"使用环境变量中的工作进程数: {num_workers}")
-    
-    # 使用更小的批次大小和更少的工作进程来减少内存压力
+
     train_loader = DataLoader(
         train_dataset, 
         batch_size=batch_size,
@@ -78,7 +69,7 @@ def get_data_loaders(tokenizer, batch_size=32, num_workers=2):
 
 def train_model(model, train_loader, val_loader, optimizer, scheduler, device, 
                 num_epochs, save_path, epoch_callback=None, use_amp=True):
-    """训练并评估模型"""
+
     best_mean_recall = 0
     best_epoch = 0
     
@@ -100,7 +91,6 @@ def train_model(model, train_loader, val_loader, optimizer, scheduler, device,
         epoch_start = time.time()
         print(f'\n=== Epoch {epoch+1}/{num_epochs} ===')
         
-        # 如果有回调函数，则执行回调
         if epoch_callback:
             epoch_callback(epoch, model)
         
@@ -177,7 +167,7 @@ def train_model(model, train_loader, val_loader, optimizer, scheduler, device,
                 with open(f"{os.path.dirname(save_path)}/history_temp.json", 'w') as f:
                     json.dump(history, f, indent=2)
             except Exception as e:
-                print(f"警告: 保存临时历史记录失败: {str(e)}")
+                print(f"保存失败: {str(e)}")
     
     return best_mean_recall, history
 
@@ -185,16 +175,13 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
     """运行单个消融实验配置"""
     set_seed(42)  # 确保可重复性
     
-    # 尝试使用GPU (CUDA)，如果可用
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     print(f"\n==== 开始实验: {config_name} ====")
     print(f"使用设备: {device} ({'GPU' if device.type == 'cuda' else 'CPU'})")
     
-    # 创建实验输出目录
     output_dir = f"ablation_results/{config_name.replace(' ', '_')}"
     
-    # 如果force_clean为True，则清除现有的实验目录
     if force_clean and os.path.exists(output_dir):
         print(f"清除现有实验目录: {output_dir}")
         import shutil
@@ -202,8 +189,7 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
     
     os.makedirs(output_dir, exist_ok=True)
     
-    # 打印详细的实验配置
-    print("\n实验配置详情:")
+    print("\n实验详情:")
     print(f"- 图像编码器: {model_config['img_encoder_cfg']['model_name']}")
     print(f"- 文本编码器: {model_config['txt_encoder_cfg']['model_name']}")
     print(f"- 池化策略: {model_config['txt_encoder_cfg'].get('pool_type', 'cls')}")
@@ -213,17 +199,13 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
     print("其他配置:", {k: v for k, v in model_config.items() 
                    if k not in ['img_encoder_cfg', 'txt_encoder_cfg', 'embed_dim', 'proj_layers', 'hard_negative']})
     
-    # 将配置保存到文件，方便后续检查
     with open(f"{output_dir}/config.json", 'w') as f:
-        # 创建可JSON序列化的配置副本
         json_config = {k: v if not isinstance(v, dict) else dict(v) for k, v in model_config.items()}
         json.dump(json_config, f, indent=2)
     
-    # 创建实验输出目录
     output_dir = f"ablation_results/{config_name.replace(' ', '_')}"
     os.makedirs(output_dir, exist_ok=True)
     
-    # 准备数据加载器 - 优先尝试在线下载，失败后再使用本地BERT模型
     try:
         # 首先尝试从Hugging Face在线下载
         print("尝试从Hugging Face在线下载BERT分词器...")
@@ -232,7 +214,6 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
         
         for attempt in range(max_retries):
             try:
-                # 设置超时时间以确保连接问题能被及时处理
                 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', 
                                                         use_fast=True,
                                                         local_files_only=False)
@@ -241,13 +222,13 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
                 break
             except Exception as e:
                 print(f"在线下载尝试 {attempt+1}/{max_retries} 失败: {str(e)}")
-                print("等待5秒后重试...")
+                print("等待5秒后重试")
                 import time
                 time.sleep(5)
         
         # 如果在线下载失败，尝试使用本地模型
         if not success:
-            print("在线下载失败，尝试使用本地BERT模型...")
+            print("在线下载失败，尝试使用本地BERT模型")
             cache_dir = os.path.join("models", "bert_cache")
             local_tokenizer_path = os.path.join(cache_dir, "tokenizer")
             
@@ -257,13 +238,11 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
                 success = True
             
         if not success:
-            print("\n警告: 无法加载BERT分词器。")
-            print("请运行 python download_bert.py 先下载模型，或检查网络连接。")
+            print("\n下载失败")
             return 0
     
     except Exception as e:
         print(f"加载BERT分词器时出错: {str(e)}")
-        print("请尝试运行 python download_bert.py 先下载模型")
         return 0
         
     train_loader, val_loader = get_data_loaders(tokenizer)
@@ -275,27 +254,21 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
             print("注意：移除local_bert_path，强制使用在线BERT模型")
             model_config['txt_encoder_cfg'].pop('local_bert_path', None)
         
-        # 提取特殊参数，以便手动设置为模型属性
         hard_negative = False
-        # 确保困难负样本参数能够被正确处理
         if 'hard_negative' in model_config:
             # 将hard_negative提取出来，不直接传给DualEncoderModel
             hard_negative = model_config.pop('hard_negative', False)
             print(f"使用困难负样本挖掘: {hard_negative}")
         
-        # 创建模型
         model = DualEncoderModel(**model_config).to(device)
-        # 手动设置困难负样本属性
         model.hard_negative = hard_negative
         print(f"模型配置: hard_negative = {model.hard_negative}")
     except Exception as e:
         print(f"创建模型时出错: {str(e)}")
         print(f"错误详情: {e.__class__.__name__}: {str(e)}")
-        # 打印更多调试信息
         print(f"模型配置: {model_config}")
         return 0
     
-    # 设置优化器和学习率调度
     total_steps = num_epochs * len(train_loader)
     optimizer, scheduler = set_optimizer_and_scheduler(
         model, 
@@ -322,15 +295,15 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
         def unfreeze_callback(epoch, model):
             nonlocal optimizer
             if epoch == 3:  # 第4个epoch
-                print("\n阶段2: 开始逐步解冻更多编码器层...")
+                print("\n阶段2: 开始逐步解冻更多编码器层")
                 freeze_encoder_layers(model, freeze_img_layers=3, freeze_txt_layers=6)
                 
             elif epoch == 6:  # 第7个epoch
-                print("\n阶段3: 进一步解冻编码器层...")
+                print("\n阶段3: 进一步解冻编码器层")
                 freeze_encoder_layers(model, freeze_img_layers=1, freeze_txt_layers=2)
                 
             elif epoch == 10:  # 第11个epoch
-                print("\n阶段4: 完全解冻所有层...")
+                print("\n阶段4: 完全解冻所有层")
                 for param in model.parameters():
                     param.requires_grad = True
                 
@@ -342,7 +315,6 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
     
     # GPU内存优化设置
     if device.type == 'cuda':
-        # 尝试设置更高效的CUDA算法
         torch.backends.cudnn.benchmark = True
         
         # 导入需要的模块
@@ -374,14 +346,12 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
         num_epochs=num_epochs,
         save_path=save_path,
         epoch_callback=epoch_callback,
-        use_amp=True  # 确保使用混合精度以节省内存
+        use_amp=True 
     )
     
-    # 保存训练历史
     with open(f"{output_dir}/history.json", 'w') as f:
         json.dump(history, f, indent=2)
     
-    # 记录实验结果摘要
     summary = {
         "config_name": config_name,
         "best_mean_r1": best_recall,
@@ -399,8 +369,7 @@ def run_ablation_experiment(config_name, model_config, num_epochs=10, force_clea
     return best_recall
 
 def define_experiments():
-    """定义所有消融实验配置"""
-    # 基础配置
+    
     base_config = {
         "img_encoder_cfg": {'model_name': 'resnet50', 'pretrained': True, 'embed_dim': 768},
         "txt_encoder_cfg": {
@@ -418,28 +387,28 @@ def define_experiments():
         "sim_type": 'cosine'
     }
     
-    # 实验1: 基线模型 - ResNet50 + BERT-CLS
+    # 实验1: ResNet50 + BERT-CLS
     exp1_config = base_config.copy()
     
-    # 实验2: 改进图像编码器 - 使用ResNet101
+    # 实验2: 使用ResNet101
     exp2_config = base_config.copy()
     exp2_config["img_encoder_cfg"] = {'model_name': 'resnet101', 'pretrained': True, 'embed_dim': 768}
     
-    # 实验3: 改进池化策略 - 使用Mean_Max池化
+    # 实验3: 使用Mean_Max池化
     exp3_config = exp2_config.copy()  # 基于ResNet101
     exp3_config["txt_encoder_cfg"] = {
         'model_name': 'bert-base-uncased', 
         'pretrained': True, 
         'embed_dim': 768,
-        'pool_type': 'mean_max'  # 使用Mean_Max池化
+        'pool_type': 'mean_max'  
     }
     
-    # 实验4: 加入困难负样本挖掘 (通过参数传递到损失函数)
-    exp4_config = exp3_config.copy()  # 基于之前的改进
+    # 实验4: 加入困难负样本挖掘 
+    exp4_config = exp3_config.copy()  
     exp4_config["hard_negative"] = True
     
-    # 实验5: 实施渐进式解冻 (在训练过程中实现)
-    exp5_config = exp4_config.copy()  # 包含所有之前的改进
+    # 实验5: 实施渐进式解冻 
+    exp5_config = exp4_config.copy()  
     
     # 完整模型
     full_model_config = exp5_config.copy()
@@ -454,8 +423,7 @@ def define_experiments():
     }
 
 def run_all_experiments(epochs_per_exp=10, force_clean=True):
-    """运行所有消融实验"""
-    # 创建主结果目录
+
     if force_clean and os.path.exists("ablation_results"):
         print("清除所有现有消融实验结果...")
         import shutil
@@ -463,25 +431,18 @@ def run_all_experiments(epochs_per_exp=10, force_clean=True):
     
     os.makedirs("ablation_results", exist_ok=True)
     
-    # 定义实验
     experiments = define_experiments()
     
-    # 记录开始时间
     start_time = time.time()
     
-    # 存储所有结果
     results = {}
     
-    # 逐个运行实验
     for name, config in experiments.items():
-        print(f"\n\n=========================================")
         print(f"开始实验: {name}")
-        print(f"=========================================\n")
-        
+  
         best_recall = run_ablation_experiment(name, config, num_epochs=epochs_per_exp, force_clean=force_clean)
         results[name] = best_recall
         
-        # 记录当前进度
         with open("ablation_results/progress.json", 'w') as f:
             json.dump({
                 "completed": list(results.keys()),
@@ -489,8 +450,7 @@ def run_all_experiments(epochs_per_exp=10, force_clean=True):
                 "remaining": list(set(experiments.keys()) - set(results.keys())),
                 "elapsed_time": time.time() - start_time
             }, f, indent=2)
-    
-    # 生成最终报告
+
     total_time = time.time() - start_time
     baseline = results["基线"]
     
@@ -513,14 +473,10 @@ def run_all_experiments(epochs_per_exp=10, force_clean=True):
         json.dump(report, f, indent=2)
     
     # 打印最终结果
-    print("\n\n=========================================")
-    print("消融实验完成!")
-    print("=========================================")
+    print("消融实验完成")
     print(f"总运行时间: {total_time/3600:.2f} 小时")
     print("\n实验结果摘要:")
-    print("-----------------------------------------")
     print(f"{'配置':<20} | {'Mean R@1':<10} | {'相对提升':<10}")
-    print("-----------------------------------------")
     
     for name, value in results.items():
         if name == "基线":
@@ -533,7 +489,6 @@ def run_all_experiments(epochs_per_exp=10, force_clean=True):
     print(f"\n完整报告保存在: ablation_results/final_report.json")
 
 def run_single_experiment(exp_name, epochs=10, force_clean=False):
-    """只运行单个指定的实验"""
     experiments = define_experiments()
     if exp_name not in experiments:
         print(f"错误: 找不到实验 '{exp_name}'")
@@ -560,8 +515,9 @@ if __name__ == "__main__":
         run_all_experiments(epochs_per_exp=args.epochs, force_clean=args.clean)
     elif args.run == "single":
         if args.experiment is None:
-            print("错误: 运行单个实验时必须指定--experiment参数")
+            print("错误: 运行单个实验时必须指定experiment参数")
             experiments = define_experiments()
             print(f"可用实验: {list(experiments.keys())}")
         else:
             run_single_experiment(args.experiment, epochs=args.epochs, force_clean=args.clean)
+
