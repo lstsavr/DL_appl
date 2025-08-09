@@ -22,15 +22,7 @@ def recall_at_k(sim_matrix, k):
     return recall, mrr, ranks
 
 def evaluate(model, dataloader, device, save_topk_path=None, topk=10, use_amp=True):
-    """评估模型性能，计算图文检索相关指标
-    
-        model: 待评估的模型
-        dataloader: 数据加载器
-        device: 计算设备
-        save_topk_path: 保存top-k检索结果的路径
-        topk: 检索结果保存的数量
-        use_amp: 是否使用自动混合精度
-    """
+
     model.eval()
     start_time = time.time()
     
@@ -121,3 +113,4 @@ def evaluate(model, dataloader, device, save_topk_path=None, topk=10, use_amp=Tr
     
 
     return results
+
