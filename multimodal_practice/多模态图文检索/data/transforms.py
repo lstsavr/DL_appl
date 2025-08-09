@@ -22,6 +22,7 @@ def get_image_transform(image_size=224, train=True):
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
 
-# 文本预处理可根据tokenizer自定义，这里预留接口
+
 def get_text_preprocess():
-    return lambda x: x  # 默认不处理，直接返回原文本
+
+    return lambda x: x 
