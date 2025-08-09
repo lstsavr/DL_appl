@@ -6,14 +6,7 @@ from torch.utils.data import Dataset
 
 class FlickrImageTextDataset(Dataset):
     def __init__(self, ann_file, img_dir, tokenizer=None, transform=None, img_name_list=None, max_length=40):
-        """
-        ann_file: 标注文件路径（json，包含images字段，每个元素有filename和sentences）
-        img_dir: 图像文件夹路径
-        tokenizer: 文本分词/编码器
-        transform: 图像预处理
-        img_name_list: 仅加载该列表中的图片（可为None）
-        max_length: 文本最大长度
-        """
+
         self.img_dir = img_dir
         self.transform = transform
         self.tokenizer = tokenizer
@@ -22,7 +15,7 @@ class FlickrImageTextDataset(Dataset):
         with open(ann_file, 'r') as f:
             data = json.load(f)
         anns = data['images']
-        # 支持图片筛选
+
         if img_name_list is not None:
             if isinstance(img_name_list, str):
                 with open(img_name_list, 'r') as f:
@@ -62,4 +55,5 @@ class FlickrImageTextDataset(Dataset):
             text = {k: v.squeeze(0) for k, v in text.items()}
         else:
             text = caption
+
         return image, text, img_name, caption
