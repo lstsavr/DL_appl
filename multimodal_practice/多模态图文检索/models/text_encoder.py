@@ -4,16 +4,7 @@ from transformers import BertModel
 
 class TextEncoder(nn.Module):
     def __init__(self, model_name='bert-base-uncased', embed_dim=256, rnn_type=None, pretrained=True, pool_type='cls'):
-        """
-        文本编码器
-        
-        参数:
-            model_name: 预训练模型名称
-            embed_dim: 嵌入维度
-            rnn_type: 可选的RNN类型
-            pretrained: 是否使用预训练权重
-            pool_type: 池化类型 ('cls', 'mean', 'max')
-        """
+
         super().__init__()
         self.model_name = model_name
         self.rnn_type = rnn_type
@@ -37,14 +28,7 @@ class TextEncoder(nn.Module):
         self.fc = nn.Linear(feat_dim, embed_dim)
 
     def forward(self, x):
-        """
-        参数:
-            x: 输入字典 (包含 input_ids, attention_mask 等)
-            
-        返回:
-            embed: 文本嵌入向量 [B, embed_dim]
-        """
-        # 文本特征提取
+
         if self.bert is not None:
             try:
                 outputs = self.bert(input_ids=x['input_ids'], attention_mask=x['attention_mask'], return_dict=True)
@@ -80,17 +64,15 @@ class TextEncoder(nn.Module):
                     masked = last_hidden * mask - 1e10 * (1 - mask)
                     max_pooled = torch.max(masked, dim=1)[0]  # [B, hidden]
                     
-                    # 加权合并平均池化和最大池化，而不是简单拼接
-                    # 这样可以保持原有特征维度，避免增加额外参数
+                    # 加权合并平均池化和最大池化
                     feat = 0.6 * mean_pooled + 0.4 * max_pooled  # [B, hidden]
                     
                 else:
                     # 如果pool_type无效，默认使用CLS
-                    print(f"警告: 不支持的池化类型 {self.pool_type}，使用默认的CLS池化")
+                    print(f"警告: 不支持的池化类型 {self.pool_type})
                     feat = outputs.pooler_output
             except Exception as e:
-                # 如果新API失败，回退到旧版本API
-                print(f"警告: 使用新版BERT API失败，回退到旧版本: {str(e)}")
+                print(f"使用新版BERT API失败，回退到旧版本: {str(e)}")
                 outputs = self.bert(input_ids=x['input_ids'], attention_mask=x['attention_mask'])
                 feat = outputs[1]  # 使用pooler输出
         else:
@@ -98,8 +80,8 @@ class TextEncoder(nn.Module):
             out, _ = self.rnn(x['embeddings'])
             feat = out[:, -1, :]  # 取最后一个时刻
             
-        # 特征映射
         embed = self.fc(feat)  # [B, embed_dim]
         
-        # 注意：不在这里做L2归一化，统一在matcher中处理
+        # L2归一化统一在matcher中处理
+
         return embed
