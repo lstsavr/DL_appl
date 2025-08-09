@@ -3,22 +3,7 @@ import torch.nn.functional as F
 
 def contrastive_loss(image_embeds, text_embeds, temperature=0.07, margin=0.2, hard_negative=True, 
                     hard_negative_weight=0.5, label_smoothing=0.1, epoch=None):
-    """
-    图文对比损失函数 (InfoNCE/NT-Xent)
-    
-    参数:
-        image_embeds: [B, D] 图像嵌入特征，应为L2归一化的向量
-        text_embeds: [B, D] 文本嵌入特征，应为L2归一化的向量
-        temperature: 温度系数，控制softmax分布的平滑度，默认0.07（适中的温度值）
-        margin: margin值，对负样本加margin，默认0.2（适中的margin值）
-        hard_negative: 是否启用困难负样本挖掘，默认True
-        hard_negative_weight: 困难负样本的权重系数，默认0.5（适中的困难负样本权重）
-        label_smoothing: 标签平滑系数，防止过拟合，默认0.1
-        epoch: 当前epoch，用于动态调整参数（可选）
-    返回: 
-        loss: 对比损失标量
-        logs: 包含损失、准确率等指标的字典
-    """
+
     batch_size = image_embeds.size(0)
     device = image_embeds.device
     
@@ -46,9 +31,8 @@ def contrastive_loss(image_embeds, text_embeds, temperature=0.07, margin=0.2, ha
     neg_t2i = logits_per_text.masked_select(neg_mask).reshape(batch_size, -1)
     neg_i2t = logits_per_image.masked_select(neg_mask).reshape(batch_size, -1)
     
-    # 自适应调整困难负样本权重（如果提供了epoch）
+
     if epoch is not None and hard_negative_weight > 0:
-        # 随训练进行逐渐增加困难样本权重，但保持适中
         adaptive_weight = min(0.7, hard_negative_weight + (epoch * 0.01))
     else:
         adaptive_weight = hard_negative_weight
@@ -65,12 +49,11 @@ def contrastive_loss(image_embeds, text_embeds, temperature=0.07, margin=0.2, ha
         hardest_neg_t2i = hard_neg_t2i[:, :2].mean(dim=1)
         hardest_neg_i2t = hard_neg_i2t[:, :2].mean(dim=1)
         
-        # InfoNCE损失的变种：结合标准InfoNCE和困难负样本对比
         # 计算正样本对相对于所有样本的InfoNCE损失
         loss_t2i_all = F.cross_entropy(logits_per_text, labels, label_smoothing=label_smoothing)
         loss_i2t_all = F.cross_entropy(logits_per_image, labels, label_smoothing=label_smoothing)
         
-        # 计算正样本与困难负样本的对比损失 (triple loss形式)，使用适中的间隔
+        # 计算正样本与困难负样本的对比损失 (triple loss形式)
         hard_loss_t2i = (hard_neg_t2i.mean(dim=1) - pos_t2i.squeeze(1) + 0.08).clamp(min=0).mean()
         hard_loss_i2t = (hard_neg_i2t.mean(dim=1) - pos_i2t.squeeze(1) + 0.08).clamp(min=0).mean()
         
@@ -82,20 +65,19 @@ def contrastive_loss(image_embeds, text_embeds, temperature=0.07, margin=0.2, ha
         loss_t2i = loss_t2i_all + adaptive_weight * hard_loss_t2i + 0.3 * adaptive_weight * hardest_loss_t2i
         loss_i2t = loss_i2t_all + adaptive_weight * hard_loss_i2t + 0.3 * adaptive_weight * hardest_loss_i2t
     else:
-        # 标准InfoNCE损失（带标签平滑）
+        # 标准InfoNCE损失
         loss_t2i = F.cross_entropy(logits_per_text, labels, label_smoothing=label_smoothing)
         loss_i2t = F.cross_entropy(logits_per_image, labels, label_smoothing=label_smoothing)
     
     # 双向损失平均
     loss = (loss_t2i + loss_i2t) / 2
     
-    # 计算Recall@1(实质上是准确率)
+    # 计算Recall@1
     pred_t2i = logits_per_text.argmax(dim=1)
     acc_t2i = (pred_t2i == labels).float().mean().item()
     pred_i2t = logits_per_image.argmax(dim=1)
     acc_i2t = (pred_i2t == labels).float().mean().item()
     
-    # 返回损失和日志信息
     logs = {
         'loss': loss.item(),
         'loss_t2i': loss_t2i.item(),
@@ -107,4 +89,5 @@ def contrastive_loss(image_embeds, text_embeds, temperature=0.07, margin=0.2, ha
         'hard_negative': hard_negative,
         'hard_neg_weight': adaptive_weight if hard_negative else 0
     }
+
     return loss, logs
